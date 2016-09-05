@@ -80,12 +80,7 @@ namespace NunuTrollBot
             }
             
             //Starting items
-
-            if (!user.HasItem(ItemId.Hunters_Talisman))
-            {
-                Shop.BuyItem(ItemId.Hunters_Talisman);
-            }
-
+            
             Shop.BuyItem(ItemId.Warding_Totem_Trinket);
 
             sequencer = 1;
@@ -138,6 +133,11 @@ namespace NunuTrollBot
                 return;
             }
 
+            if (user.IsRecalling() && !myJungler.IsRecalling())
+            {
+                Core.DelayAction(() => Player.ForceIssueOrder(GameObjectOrder.MoveTo, user.Position, false), 750);
+            }
+
             if (user.Position == myJungler.Position)
             {
                 return;
@@ -155,6 +155,11 @@ namespace NunuTrollBot
         {
             if (user.IsInShopRange())
             {
+                if (!user.HasItem(ItemId.Hunters_Talisman) && !user.HasItem(ItemId.Trackers_Knife_Enchantment_Cinderhulk) && user.Gold >= 350)
+                {
+                    Shop.BuyItem(ItemId.Hunters_Talisman);
+                }
+
                 if (!user.HasItem(ItemId.Trackers_Knife_Enchantment_Cinderhulk) && user.Gold >= 2275)
                 {
                     Shop.BuyItem(ItemId.Trackers_Knife_Enchantment_Cinderhulk);
@@ -216,13 +221,13 @@ namespace NunuTrollBot
             // E Killsteal
             if (E.IsReady())
             {
-                var EKillableHero =
-                    EntityManager.Heroes.Enemies.OrderBy(a => a.Distance(user))
-                        .FirstOrDefault(b => b.Distance(user) <= 550 && b.Health < user.GetSpellDamage(b, SpellSlot.E));
-                if (EKillableHero != null)
+                foreach (var enemy in EntityManager.Heroes.Enemies)
                 {
-                    Player.CastSpell(SpellSlot.E, EKillableHero);
-                    return;
+                    if (enemy.Distance(user.Position) <= 550 && enemy.Health <= user.GetSpellDamage(enemy,SpellSlot.E))
+                    {
+                        Player.CastSpell(SpellSlot.E, enemy);
+                        return;
+                    }
                 }
             }
 
@@ -274,7 +279,7 @@ namespace NunuTrollBot
                             user.GetSummonerSpellDamage(KillableJungle, DamageLibrary.SummonerSpells.Smite))
                         {
                             Player.CastSpell(SpellSlot.Q, KillableJungle);
-                            Core.DelayAction(() => Player.CastSpell(smite.Slot), 150);
+                            Core.DelayAction(() => Player.CastSpell(smite.Slot), 100);
                         }
                     }
                     else if (Q.IsReady() && !smite.IsReady())
