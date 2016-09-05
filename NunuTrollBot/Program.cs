@@ -135,7 +135,7 @@ namespace NunuTrollBot
 
             if (user.IsRecalling() && !myJungler.IsRecalling())
             {
-                Core.DelayAction(() => Player.ForceIssueOrder(GameObjectOrder.MoveTo, user.Position, false), 750);
+                Core.DelayAction(() => Player.ForceIssueOrder(GameObjectOrder.MoveTo, user.Position, false), 1100);
             }
 
             if (user.Position == myJungler.Position)
