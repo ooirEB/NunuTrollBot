@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using EloBuddy;
@@ -22,6 +23,8 @@ namespace NunuTrollBot
         private static Spell.Targeted E;
 
         private static int sequencer;
+        private static int idleCounter;
+        private static Vector3 lastPosition;
 
         private static Spell.Targeted smite;
 
@@ -64,7 +67,7 @@ namespace NunuTrollBot
                 500);
 
             //Check for smite
-            if (smite == null)
+            if (smite.Slot == SpellSlot.Unknown)
             {
                 Chat.Print("NunuTrollBot: Sorry, but you have to have smite for this bot to work!");
                 return;
@@ -94,6 +97,8 @@ namespace NunuTrollBot
 
             sequencer = 1;
             tickTock = 0;
+            idleCounter = 1;
+            lastPosition = user.Position;
             Game.OnUpdate += Sequence;
             Obj_AI_Base.OnTeleport += Obj_AI_Base_OnTeleport;
             Obj_AI_Base.OnLevelUp += Obj_AI_Base_OnLevelUp;
@@ -203,12 +208,14 @@ namespace NunuTrollBot
                 return;
             }
 
+            JungleSteal();
+
             Circle.Draw(Color.AliceBlue, 100, user.Path);
 
             switch (sequencer)
             {
                 case 1:
-                    JungleSteal();
+                    BadManners();
                     sequencer = 2;
                     break;
                 case 2:
@@ -223,6 +230,24 @@ namespace NunuTrollBot
                     Movement();
                     sequencer = 1;
                     break;
+            }
+        }
+
+        private static void BadManners()
+        {
+            if (user.Position == lastPosition)
+            {
+                idleCounter++;
+            }
+            else
+            {
+                lastPosition = user.Position;
+                idleCounter = 1;
+            }
+            if (idleCounter == 150)
+            {
+                Player.DoEmote(Emote.Dance);
+                idleCounter = 1;
             }
         }
 
@@ -356,7 +381,6 @@ namespace NunuTrollBot
                             user.GetSummonerSpellDamage(KillableJungle, DamageLibrary.SummonerSpells.Smite))
                         {
                             Player.CastSpell(SpellSlot.Q, KillableJungle);
-                            Core.DelayAction(() => Player.CastSpell(smite.Slot, KillableJungle), 150);
                         }
                     }
                     else if (Q.IsReady() && !smite.IsReady())
