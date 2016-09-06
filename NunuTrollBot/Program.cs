@@ -1,8 +1,13 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using EloBuddy;
 using EloBuddy.SDK;
 using EloBuddy.SDK.Events;
+using EloBuddy.SDK.Rendering;
+using SharpDX;
+using static EloBuddy.ObjectManager;
+using Player = EloBuddy.Player;
 
 namespace NunuTrollBot
 {
@@ -11,17 +16,17 @@ namespace NunuTrollBot
         private static AIHeroClient user;
 
         private static AIHeroClient myJungler;
+        private static AIHeroClient myJunglerAFKBackup;
 
         private static Spell.Targeted Q;
         private static Spell.Targeted E;
-
-        private static int curLevel;
 
         private static int sequencer;
 
         private static Spell.Targeted smite;
 
         private static int tickTock;
+        private static int tickTockRequired;
         private static readonly int[] eLevel = {2, 8, 10, 12, 13};
 
         private static readonly int[] qLevel = {1, 3, 5, 7, 9};
@@ -71,6 +76,7 @@ namespace NunuTrollBot
                 if (!ally.IsMe && ally.FindSummonerSpellSlotFromName("summonersmite") != SpellSlot.Unknown)
                 {
                     myJungler = ally;
+                    myJunglerAFKBackup = myJungler;
                 }
             }
             if (myJungler == null)
@@ -78,16 +84,116 @@ namespace NunuTrollBot
                 Chat.Print("NunuTrollBot: No jungler found!");
                 return;
             }
-            
             //Starting items
-            
+
             Shop.BuyItem(ItemId.Warding_Totem_Trinket);
+            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.Q))
+            {
+                user.Spellbook.LevelSpell(SpellSlot.Q);
+            }
 
             sequencer = 1;
             tickTock = 0;
             Game.OnUpdate += Sequence;
+            Obj_AI_Base.OnTeleport += Obj_AI_Base_OnTeleport;
+            Obj_AI_Base.OnLevelUp += Obj_AI_Base_OnLevelUp;
+            Game.OnNotify += Game_OnNotify;
             Chat.Print("NunuTrollBot: Following and trolling " + myJungler.ChampionName + "!");
             ////////////////////////////
+        }
+
+        private static void Game_OnNotify(GameNotifyEventArgs args)
+        {
+            if (args.EventId == GameEventId.OnReconnect && args.NetworkId == myJunglerAFKBackup.NetworkId)
+            {
+                Chat.Print("NunuTrollBot: Following jungler " + myJunglerAFKBackup.ChampionName + " again!");
+                myJungler = myJunglerAFKBackup;
+            }
+            if (args.NetworkId == myJungler.NetworkId && args.EventId == GameEventId.OnLeave)
+            {
+                Chat.Print("NunuTrollBot: Jungler left the game! Great success!");
+                while (myJungler.NetworkId == myJunglerAFKBackup.NetworkId)
+                {
+                    Chat.Print("NunuTrollBot: Finding a champion to follow!");
+                    myJungler =
+                        EntityManager.Heroes.Allies.Where(
+                            a => !a.IsMe && a.IsMoving && a.NetworkId != myJunglerAFKBackup.NetworkId)
+                            .FirstOrDefault();
+                    Thread.Sleep(500);
+                }
+                Chat.Print("NunuTrollBot: Following " + myJungler.ChampionName + "!");
+            }
+
+            if (args.NetworkId == user.NetworkId && args.EventId == GameEventId.OnKill)
+            {
+                if (args.EventId == GameEventId.OnChampionKill)
+                {
+                    Core.DelayAction(() => Chat.Say("/masterybadge"), 600);
+                }
+                Core.DelayAction(() => Player.DoEmote(Emote.Laugh), 600);
+            }
+        }
+
+        private static void Obj_AI_Base_OnLevelUp(Obj_AI_Base sender, Obj_AI_BaseLevelUpEventArgs args)
+        {
+            if (sender.NetworkId == user.NetworkId)
+            {
+                Core.DelayAction(() => LevelUp(), new Random().Next(500, 1000));
+            }
+        }
+
+        private static void LevelUp()
+        {
+            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.Q))
+            {
+                user.Spellbook.LevelSpell(SpellSlot.Q);
+                return;
+            }
+            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.R))
+            {
+                user.Spellbook.LevelSpell(SpellSlot.R);
+                return;
+            }
+            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.E))
+            {
+                user.Spellbook.LevelSpell(SpellSlot.E);
+                return;
+            }
+            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.W))
+            {
+                user.Spellbook.LevelSpell(SpellSlot.W);
+            }
+        }
+
+        private static void Obj_AI_Base_OnTeleport(Obj_AI_Base sender, GameObjectTeleportEventArgs args)
+        {
+            if (user.IsDead)
+            {
+                return;
+            }
+            if (sender.NetworkId == myJungler.NetworkId)
+            {
+                if (args.RecallName == "Recall")
+                {
+                    if (!user.IsInFountainRange() && !myJungler.IsInFountainRange())
+                    {
+                        Core.DelayAction(() => Player.CastSpell(SpellSlot.Recall), 200);
+                        return;
+                    }
+                }
+                if (user.IsRecalling())
+                {
+                    Core.DelayAction(() => ChkRecall(), Game.Ping + 200);
+                }
+            }
+        }
+
+        private static void ChkRecall()
+        {
+            if (!myJungler.IsRecalling() && !myJungler.IsInFountainRange())
+            {
+                Player.ForceIssueOrder(GameObjectOrder.MoveTo, user.Position, false);
+            }
         }
 
         private static void Sequence(EventArgs args)
@@ -96,6 +202,8 @@ namespace NunuTrollBot
             {
                 return;
             }
+
+            Circle.Draw(Color.AliceBlue, 100, user.Path);
 
             switch (sequencer)
             {
@@ -108,14 +216,10 @@ namespace NunuTrollBot
                     sequencer = 3;
                     break;
                 case 3:
-                    LevelUpAbilities();
+                    Shoping();
                     sequencer = 4;
                     break;
                 case 4:
-                    Shoping();
-                    sequencer = 5;
-                    break;
-                case 5:
                     Movement();
                     sequencer = 1;
                     break;
@@ -124,18 +228,11 @@ namespace NunuTrollBot
 
         private static void Movement()
         {
-            if (myJungler.IsDead || myJungler.IsRecalling())
+            if (myJungler.IsDead)
             {
-                if (!user.IsInFountainRange())
-                {
-                    Core.DelayAction(() => Player.CastSpell(SpellSlot.Recall), 500);
-                }
+                var myBase = Get<Obj_SpawnPoint>().FirstOrDefault(a => a.Team == user.Team);
+                Orbwalker.MoveTo(myBase?.Position ?? Vector3.Zero);
                 return;
-            }
-
-            if (user.IsRecalling() && !myJungler.IsRecalling())
-            {
-                Core.DelayAction(() => Player.ForceIssueOrder(GameObjectOrder.MoveTo, user.Position, false), 1100);
             }
 
             if (user.Position == myJungler.Position)
@@ -143,10 +240,12 @@ namespace NunuTrollBot
                 return;
             }
 
-            if (tickTock == 10)
+            if (tickTock == tickTockRequired)
             {
-                Orbwalker.MoveTo(myJungler.Position);
+                var destination = myJungler.Position;
+                Orbwalker.MoveTo(destination);
                 tickTock = 1;
+                tickTockRequired = new Random().Next(10, 15);
             }
             tickTock++;
         }
@@ -155,7 +254,8 @@ namespace NunuTrollBot
         {
             if (user.IsInShopRange())
             {
-                if (!user.HasItem(ItemId.Hunters_Talisman) && !user.HasItem(ItemId.Trackers_Knife_Enchantment_Cinderhulk) && user.Gold >= 350)
+                if (!user.HasItem(ItemId.Hunters_Talisman) &&
+                    !user.HasItem(ItemId.Trackers_Knife_Enchantment_Cinderhulk) && user.Gold >= 350)
                 {
                     Shop.BuyItem(ItemId.Hunters_Talisman);
                 }
@@ -192,30 +292,6 @@ namespace NunuTrollBot
             }
         }
 
-        private static void LevelUpAbilities()
-        {
-            if (user.Level > curLevel)
-            {
-                if (qLevel.Contains(user.Level))
-                {
-                    user.Spellbook.LevelSpell(SpellSlot.Q);
-                }
-                if (wLevel.Contains(user.Level))
-                {
-                    user.Spellbook.LevelSpell(SpellSlot.W);
-                }
-                if (eLevel.Contains(user.Level))
-                {
-                    user.Spellbook.LevelSpell(SpellSlot.E);
-                }
-                if (rLevel.Contains(user.Level))
-                {
-                    user.Spellbook.LevelSpell(SpellSlot.R);
-                }
-                curLevel++;
-            }
-        }
-
         private static void KillSteal()
         {
             // E Killsteal
@@ -223,7 +299,8 @@ namespace NunuTrollBot
             {
                 foreach (var enemy in EntityManager.Heroes.Enemies)
                 {
-                    if (enemy.Distance(user.Position) <= 550 && enemy.Health <= user.GetSpellDamage(enemy,SpellSlot.E))
+                    if (enemy.Distance(user.Position) <= 550 &&
+                        enemy.TotalShieldHealth() <= user.GetSpellDamage(enemy, SpellSlot.E))
                     {
                         Player.CastSpell(SpellSlot.E, enemy);
                         return;
@@ -233,7 +310,7 @@ namespace NunuTrollBot
 
             // Autoattack creeps
             var killableMinion = EntityManager.MinionsAndMonsters.EnemyMinions.OrderBy(a => a.Health)
-                .FirstOrDefault(b => b.Distance(user) <= user.AttackRange + 100);
+                .FirstOrDefault(b => b.Distance(user) <= 500);
             if (killableMinion != null && !killableMinion.IsDead && killableMinion.BaseSkinName.Contains("Siege") &&
                 killableMinion.Health <= user.GetSpellDamage(killableMinion, SpellSlot.Q))
             {
@@ -279,7 +356,7 @@ namespace NunuTrollBot
                             user.GetSummonerSpellDamage(KillableJungle, DamageLibrary.SummonerSpells.Smite))
                         {
                             Player.CastSpell(SpellSlot.Q, KillableJungle);
-                            Core.DelayAction(() => Player.CastSpell(smite.Slot), 100);
+                            Core.DelayAction(() => Player.CastSpell(smite.Slot, KillableJungle), 150);
                         }
                     }
                     else if (Q.IsReady() && !smite.IsReady())
