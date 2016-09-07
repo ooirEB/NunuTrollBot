@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using EloBuddy;
@@ -14,27 +13,34 @@ namespace NunuTrollBot
 {
     internal class Program
     {
-        private static AIHeroClient user;
+        private static AIHeroClient _user;
 
-        private static AIHeroClient myJungler;
-        private static AIHeroClient myJunglerAFKBackup;
+        private static AIHeroClient _myJungler;
+        private static AIHeroClient _myJunglerAfkBackup;
 
-        private static Spell.Targeted Q;
-        private static Spell.Targeted E;
+        private static Spell.Targeted _q;
+        private static Spell.Targeted _e;
 
-        private static int sequencer;
-        private static int idleCounter;
-        private static Vector3 lastPosition;
+        private static int _sequencer;
+        private static int _idleCounter;
+        private static Vector3 _lastPosition;
 
-        private static Spell.Targeted smite;
+        private static Spell.Targeted _smite;
 
-        private static int tickTock;
-        private static int tickTockRequired;
-        private static readonly int[] eLevel = {2, 8, 10, 12, 13};
+        private static int _tickTock;
+        private static int _tickTockRequired;
+        private static readonly int[] ELevel = {2, 8, 10, 12, 13};
 
-        private static readonly int[] qLevel = {1, 3, 5, 7, 9};
-        private static readonly int[] rLevel = {6, 11, 16};
-        private static readonly int[] wLevel = {4, 14, 15, 17, 18};
+        private static readonly int[] QLevel = {1, 3, 5, 7, 9};
+        private static readonly int[] RLevel = {6, 11, 16};
+        private static readonly int[] WLevel = {4, 14, 15, 17, 18};
+
+        private static readonly ItemId[] _itemsToBuy =
+        {
+            ItemId.Trackers_Knife_Enchantment_Cinderhulk,
+            ItemId.Boots_of_Swiftness, ItemId.Frozen_Heart, ItemId.Spirit_Visage, ItemId.Dead_Mans_Plate,
+            ItemId.Warmogs_Armor
+        };
 
         private static void Main(string[] args)
         {
@@ -49,25 +55,25 @@ namespace NunuTrollBot
                 Chat.Print("NunuTrollBot: Only Summoners Rift is supported!");
             }
 
-            user = Player.Instance;
+            _user = Player.Instance;
 
             //Check Champion
-            if (user.ChampionName != "Nunu")
+            if (_user.ChampionName != "Nunu")
             {
-                Chat.Print("NunuTrollBot: " + user.ChampionName + " is not supported! Go for Nunu! Kappa");
+                Chat.Print("NunuTrollBot: " + _user.ChampionName + " is not supported! Go for Nunu! Kappa");
                 return;
             }
 
             //Do the spells
 
-            Q = new Spell.Targeted(SpellSlot.Q, 125);
-            E = new Spell.Targeted(SpellSlot.E, 550);
+            _q = new Spell.Targeted(SpellSlot.Q, 125);
+            _e = new Spell.Targeted(SpellSlot.E, 550);
 
-            smite = new Spell.Targeted(user.GetSpellSlotFromName("summonersmite"),
+            _smite = new Spell.Targeted(_user.GetSpellSlotFromName("summonersmite"),
                 500);
 
             //Check for smite
-            if (smite.Slot == SpellSlot.Unknown)
+            if (_smite.Slot == SpellSlot.Unknown)
             {
                 Chat.Print("NunuTrollBot: Sorry, but you have to have smite for this bot to work!");
                 return;
@@ -78,11 +84,11 @@ namespace NunuTrollBot
             {
                 if (!ally.IsMe && ally.FindSummonerSpellSlotFromName("summonersmite") != SpellSlot.Unknown)
                 {
-                    myJungler = ally;
-                    myJunglerAFKBackup = myJungler;
+                    _myJungler = ally;
+                    _myJunglerAfkBackup = _myJungler;
                 }
             }
-            if (myJungler == null)
+            if (_myJungler == null)
             {
                 Chat.Print("NunuTrollBot: No jungler found!");
                 return;
@@ -90,46 +96,45 @@ namespace NunuTrollBot
             //Starting items
 
             Shop.BuyItem(ItemId.Warding_Totem_Trinket);
-            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.Q))
+            if (_user.Spellbook.CanSpellBeUpgraded(SpellSlot.Q))
             {
-                user.Spellbook.LevelSpell(SpellSlot.Q);
+                _user.Spellbook.LevelSpell(SpellSlot.Q);
             }
 
-            sequencer = 1;
-            tickTock = 0;
-            idleCounter = 1;
-            lastPosition = user.Position;
+            _sequencer = 1;
+            _tickTock = 0;
+            _idleCounter = 1;
+            _lastPosition = _user.Position;
             Game.OnUpdate += Sequence;
             Obj_AI_Base.OnTeleport += Obj_AI_Base_OnTeleport;
             Obj_AI_Base.OnLevelUp += Obj_AI_Base_OnLevelUp;
             Game.OnNotify += Game_OnNotify;
-            Chat.Print("NunuTrollBot: Following and trolling " + myJungler.ChampionName + "!");
+            Chat.Print("NunuTrollBot: Following and trolling " + _myJungler.ChampionName + "!");
             ////////////////////////////
         }
 
         private static void Game_OnNotify(GameNotifyEventArgs args)
         {
-            if (args.EventId == GameEventId.OnReconnect && args.NetworkId == myJunglerAFKBackup.NetworkId)
+            if (args.EventId == GameEventId.OnReconnect && args.NetworkId == _myJunglerAfkBackup.NetworkId)
             {
-                Chat.Print("NunuTrollBot: Following jungler " + myJunglerAFKBackup.ChampionName + " again!");
-                myJungler = myJunglerAFKBackup;
+                Chat.Print("NunuTrollBot: Following jungler " + _myJunglerAfkBackup.ChampionName + " again!");
+                _myJungler = _myJunglerAfkBackup;
             }
-            if (args.NetworkId == myJungler.NetworkId && args.EventId == GameEventId.OnLeave)
+            if (args.NetworkId == _myJungler.NetworkId && args.EventId == GameEventId.OnLeave)
             {
                 Chat.Print("NunuTrollBot: Jungler left the game! Great success!");
-                while (myJungler.NetworkId == myJunglerAFKBackup.NetworkId)
+                while (_myJungler.NetworkId == _myJunglerAfkBackup.NetworkId)
                 {
                     Chat.Print("NunuTrollBot: Finding a champion to follow!");
-                    myJungler =
-                        EntityManager.Heroes.Allies.Where(
-                            a => !a.IsMe && a.IsMoving && a.NetworkId != myJunglerAFKBackup.NetworkId)
-                            .FirstOrDefault();
+                    _myJungler =
+                        EntityManager.Heroes.Allies
+                            .FirstOrDefault(a => !a.IsMe && a.IsMoving && a.NetworkId != _myJunglerAfkBackup.NetworkId);
                     Thread.Sleep(500);
                 }
-                Chat.Print("NunuTrollBot: Following " + myJungler.ChampionName + "!");
+                Chat.Print("NunuTrollBot: Following " + _myJungler.ChampionName + "!");
             }
 
-            if (args.NetworkId == user.NetworkId && args.EventId == GameEventId.OnKill)
+            if (args.NetworkId == _user.NetworkId && args.EventId == GameEventId.OnKill)
             {
                 if (args.EventId == GameEventId.OnChampionKill)
                 {
@@ -141,7 +146,7 @@ namespace NunuTrollBot
 
         private static void Obj_AI_Base_OnLevelUp(Obj_AI_Base sender, Obj_AI_BaseLevelUpEventArgs args)
         {
-            if (sender.NetworkId == user.NetworkId)
+            if (sender.NetworkId == _user.NetworkId)
             {
                 Core.DelayAction(() => LevelUp(), new Random().Next(500, 1000));
             }
@@ -149,44 +154,44 @@ namespace NunuTrollBot
 
         private static void LevelUp()
         {
-            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.Q))
+            if (_user.Spellbook.CanSpellBeUpgraded(SpellSlot.Q))
             {
-                user.Spellbook.LevelSpell(SpellSlot.Q);
+                _user.Spellbook.LevelSpell(SpellSlot.Q);
                 return;
             }
-            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.R))
+            if (_user.Spellbook.CanSpellBeUpgraded(SpellSlot.R))
             {
-                user.Spellbook.LevelSpell(SpellSlot.R);
+                _user.Spellbook.LevelSpell(SpellSlot.R);
                 return;
             }
-            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.E))
+            if (_user.Spellbook.CanSpellBeUpgraded(SpellSlot.E))
             {
-                user.Spellbook.LevelSpell(SpellSlot.E);
+                _user.Spellbook.LevelSpell(SpellSlot.E);
                 return;
             }
-            if (user.Spellbook.CanSpellBeUpgraded(SpellSlot.W))
+            if (_user.Spellbook.CanSpellBeUpgraded(SpellSlot.W))
             {
-                user.Spellbook.LevelSpell(SpellSlot.W);
+                _user.Spellbook.LevelSpell(SpellSlot.W);
             }
         }
 
         private static void Obj_AI_Base_OnTeleport(Obj_AI_Base sender, GameObjectTeleportEventArgs args)
         {
-            if (user.IsDead)
+            if (_user.IsDead)
             {
                 return;
             }
-            if (sender.NetworkId == myJungler.NetworkId)
+            if (sender.NetworkId == _myJungler.NetworkId)
             {
                 if (args.RecallName == "Recall")
                 {
-                    if (!user.IsInFountainRange() && !myJungler.IsInFountainRange())
+                    if (!_user.IsInFountainRange() && !_myJungler.IsInFountainRange())
                     {
                         Core.DelayAction(() => Player.CastSpell(SpellSlot.Recall), 200);
                         return;
                     }
                 }
-                if (user.IsRecalling())
+                if (_user.IsRecalling())
                 {
                     Core.DelayAction(() => ChkRecall(), Game.Ping + 200);
                 }
@@ -195,124 +200,123 @@ namespace NunuTrollBot
 
         private static void ChkRecall()
         {
-            if (!myJungler.IsRecalling() && !myJungler.IsInFountainRange())
+            if (!_myJungler.IsRecalling() && !_myJungler.IsInFountainRange())
             {
-                Player.ForceIssueOrder(GameObjectOrder.MoveTo, user.Position, false);
+                Player.ForceIssueOrder(GameObjectOrder.MoveTo, _user.Position, false);
             }
         }
 
         private static void Sequence(EventArgs args)
         {
-            if (user.IsDead)
+            if (_user.IsDead)
             {
                 return;
             }
 
             JungleSteal();
 
-            Circle.Draw(Color.AliceBlue, 100, user.Path);
+            Circle.Draw(Color.AliceBlue, 100, _user.Path);
 
-            switch (sequencer)
+            switch (_sequencer)
             {
                 case 1:
                     BadManners();
-                    sequencer = 2;
+                    _sequencer = 2;
                     break;
                 case 2:
                     KillSteal();
-                    sequencer = 3;
+                    _sequencer = 3;
                     break;
                 case 3:
                     Shoping();
-                    sequencer = 4;
+                    _sequencer = 4;
                     break;
                 case 4:
                     Movement();
-                    sequencer = 1;
+                    _sequencer = 1;
                     break;
             }
         }
 
         private static void BadManners()
         {
-            if (user.Position == lastPosition)
+            if (_user.Position == _lastPosition)
             {
-                idleCounter++;
+                _idleCounter++;
             }
             else
             {
-                lastPosition = user.Position;
-                idleCounter = 1;
+                _lastPosition = _user.Position;
+                _idleCounter = 1;
             }
-            if (idleCounter == 150)
+            if (_idleCounter == 150)
             {
                 Player.DoEmote(Emote.Dance);
-                idleCounter = 1;
+                _idleCounter = 1;
             }
         }
 
         private static void Movement()
         {
-            if (myJungler.IsDead)
+            if (_myJungler.IsDead)
             {
-                var myBase = Get<Obj_SpawnPoint>().FirstOrDefault(a => a.Team == user.Team);
+                var myBase = Get<Obj_SpawnPoint>().FirstOrDefault(a => a.Team == _user.Team);
                 Orbwalker.MoveTo(myBase?.Position ?? Vector3.Zero);
                 return;
             }
 
-            if (user.Position == myJungler.Position)
+            if (_user.Position == _myJungler.Position)
             {
                 return;
             }
 
-            if (tickTock == tickTockRequired)
+            if (_tickTock == _tickTockRequired)
             {
-                var destination = myJungler.Position;
+                var destination = _myJungler.Position;
                 Orbwalker.MoveTo(destination);
-                tickTock = 1;
-                tickTockRequired = new Random().Next(10, 15);
+                _tickTock = 1;
+                _tickTockRequired = new Random().Next(10, 15);
             }
-            tickTock++;
+            _tickTock++;
         }
 
         private static void Shoping()
         {
-            if (user.IsInShopRange())
+            if (
+                !_user.HasItem(ItemId.Hunters_Talisman, ItemId.Trackers_Knife_Enchantment_Cinderhulk,
+                    ItemId.Trackers_Knife))
             {
-                if (!user.HasItem(ItemId.Hunters_Talisman) &&
-                    !user.HasItem(ItemId.Trackers_Knife_Enchantment_Cinderhulk) && user.Gold >= 350)
+                Shop.BuyItem(ItemId.Hunters_Talisman);
+            }
+            foreach (var x in _itemsToBuy)
+            {
+                if (_user.HasItem(x))
                 {
-                    Shop.BuyItem(ItemId.Hunters_Talisman);
+                    continue;
                 }
-
-                if (!user.HasItem(ItemId.Trackers_Knife_Enchantment_Cinderhulk) && user.Gold >= 2275)
+                // Credits to Definitely Not Kappa!
+                var item = Item.ItemData.FirstOrDefault(i => i.Key == x);
+                var theitem = new Item(item.Key);
+                var ia = theitem.GetComponents().Where(a => !a.IsOwned(_user)).Sum(i => i.ItemInfo.Gold.Total);
+                var currentprice = theitem.ItemInfo.Gold.Base + ia;
+                if ((item.Value != null) && (item.Key != ItemId.Unknown) && item.Value.ValidForPlayer &&
+                    item.Value.InStore && item.Value.Gold.Purchasable
+                    && item.Value.AvailableForMap && (_user.Gold >= currentprice))
                 {
-                    Shop.BuyItem(ItemId.Trackers_Knife_Enchantment_Cinderhulk);
+                    Shop.BuyItem(item.Key);
+                    return;
                 }
-
-                if (!user.HasItem(ItemId.Ninja_Tabi) && user.Gold >= 1100)
+                //
+                if (_user.InventoryItems.Length < 8)
                 {
-                    Shop.BuyItem(ItemId.Ninja_Tabi);
-                }
-
-                if (!user.HasItem(ItemId.Frozen_Heart) && user.Gold >= 2800)
-                {
-                    Shop.BuyItem(ItemId.Frozen_Heart);
-                }
-
-                if (!user.HasItem(ItemId.Spirit_Visage) && user.Gold >= 2800)
-                {
-                    Shop.BuyItem(ItemId.Spirit_Visage);
-                }
-
-                if (!user.HasItem(ItemId.Dead_Mans_Plate) && user.Gold >= 2900)
-                {
-                    Shop.BuyItem(ItemId.Dead_Mans_Plate);
-                }
-
-                if (!user.HasItem(ItemId.Warmogs_Armor) && user.Gold >= 2850)
-                {
-                    Shop.BuyItem(ItemId.Warmogs_Armor);
+                    foreach (var component in theitem.GetComponents())
+                    {
+                        if (!_user.HasItem(component.Id) && _user.Gold >= component.GoldRequired())
+                        {
+                            Shop.BuyItem(component.Id);
+                            return;
+                        }
+                    }
                 }
             }
         }
@@ -320,12 +324,12 @@ namespace NunuTrollBot
         private static void KillSteal()
         {
             // E Killsteal
-            if (E.IsReady())
+            if (_e.IsReady())
             {
                 foreach (var enemy in EntityManager.Heroes.Enemies)
                 {
-                    if (enemy.Distance(user.Position) <= 550 &&
-                        enemy.TotalShieldHealth() <= user.GetSpellDamage(enemy, SpellSlot.E))
+                    if (enemy.Distance(_user.Position) <= 550 &&
+                        enemy.TotalShieldHealth() <= _user.GetSpellDamage(enemy, SpellSlot.E))
                     {
                         Player.CastSpell(SpellSlot.E, enemy);
                         return;
@@ -335,15 +339,15 @@ namespace NunuTrollBot
 
             // Autoattack creeps
             var killableMinion = EntityManager.MinionsAndMonsters.EnemyMinions.OrderBy(a => a.Health)
-                .FirstOrDefault(b => b.Distance(user) <= 500);
+                .FirstOrDefault(b => b.Distance(_user) <= 500);
             if (killableMinion != null && !killableMinion.IsDead && killableMinion.BaseSkinName.Contains("Siege") &&
-                killableMinion.Health <= user.GetSpellDamage(killableMinion, SpellSlot.Q))
+                killableMinion.Health <= _user.GetSpellDamage(killableMinion, SpellSlot.Q))
             {
                 Player.CastSpell(SpellSlot.Q, killableMinion);
                 return;
             }
             if (killableMinion != null && !killableMinion.IsDead &&
-                killableMinion.Health <= user.GetAutoAttackDamage(killableMinion, true))
+                killableMinion.Health <= _user.GetAutoAttackDamage(killableMinion, true))
             {
                 Player.IssueOrder(GameObjectOrder.AttackTo, killableMinion);
                 return;
@@ -353,10 +357,10 @@ namespace NunuTrollBot
             var jungleCreep =
                 EntityManager.MinionsAndMonsters.GetJungleMonsters()
                     .OrderBy(a => a.Health)
-                    .FirstOrDefault(b => b.Distance(user) <= 500);
+                    .FirstOrDefault(b => b.Distance(_user) <= 500);
 
             if (jungleCreep != null && !jungleCreep.IsDead &&
-                jungleCreep.Health <= user.GetAutoAttackDamage(jungleCreep, true))
+                jungleCreep.Health <= _user.GetAutoAttackDamage(jungleCreep, true))
             {
                 Player.IssueOrder(GameObjectOrder.AttackTo, jungleCreep);
             }
@@ -364,48 +368,48 @@ namespace NunuTrollBot
 
         private static void JungleSteal()
         {
-            var KillableJungle =
+            var killableJungle =
                 EntityManager.MinionsAndMonsters.GetJungleMonsters()
                     .OrderByDescending(a => a.MaxHealth)
-                    .FirstOrDefault(b => b.Distance(user) <= 500);
+                    .FirstOrDefault(b => b.Distance(_user) <= 500);
 
-            if (KillableJungle != null && !KillableJungle.Name.Contains("Mini"))
+            if (killableJungle != null && !killableJungle.Name.Contains("Mini"))
             {
-                if (KillableJungle.Name.Contains("Baron") || KillableJungle.Name.Contains("Dragon") ||
-                    KillableJungle.Name.Contains("Red") || KillableJungle.Name.Contains("Blue"))
+                if (killableJungle.Name.Contains("Baron") || killableJungle.Name.Contains("Dragon") ||
+                    killableJungle.Name.Contains("Red") || killableJungle.Name.Contains("Blue"))
                 {
-                    if (Q.IsReady() && smite.IsReady())
+                    if (_q.IsReady() && _smite.IsReady())
                     {
-                        if (KillableJungle.Health <=
-                            user.GetSpellDamage(KillableJungle, SpellSlot.Q) +
-                            user.GetSummonerSpellDamage(KillableJungle, DamageLibrary.SummonerSpells.Smite))
+                        if (killableJungle.Health <=
+                            _user.GetSpellDamage(killableJungle, SpellSlot.Q) +
+                            _user.GetSummonerSpellDamage(killableJungle, DamageLibrary.SummonerSpells.Smite))
                         {
-                            Player.CastSpell(SpellSlot.Q, KillableJungle);
+                            Player.CastSpell(SpellSlot.Q, killableJungle);
                         }
                     }
-                    else if (Q.IsReady() && !smite.IsReady())
+                    else if (_q.IsReady() && !_smite.IsReady())
                     {
-                        if (KillableJungle.Health <= user.GetSpellDamage(KillableJungle, SpellSlot.Q))
+                        if (killableJungle.Health <= _user.GetSpellDamage(killableJungle, SpellSlot.Q))
                         {
-                            Player.CastSpell(SpellSlot.Q, KillableJungle);
+                            Player.CastSpell(SpellSlot.Q, killableJungle);
                         }
                     }
-                    else if (!Q.IsReady() && smite.IsReady())
+                    else if (!_q.IsReady() && _smite.IsReady())
                     {
-                        if (KillableJungle.Health <=
-                            user.GetSummonerSpellDamage(KillableJungle, DamageLibrary.SummonerSpells.Smite))
+                        if (killableJungle.Health <=
+                            _user.GetSummonerSpellDamage(killableJungle, DamageLibrary.SummonerSpells.Smite))
                         {
-                            Player.CastSpell(smite.Slot, KillableJungle);
+                            Player.CastSpell(_smite.Slot, killableJungle);
                         }
                     }
                 }
                 else
                 {
-                    if (Q.IsReady())
+                    if (_q.IsReady())
                     {
-                        if (KillableJungle.Health <= user.GetSpellDamage(KillableJungle, SpellSlot.Q))
+                        if (killableJungle.Health <= _user.GetSpellDamage(killableJungle, SpellSlot.Q))
                         {
-                            Player.CastSpell(SpellSlot.Q, KillableJungle);
+                            Player.CastSpell(SpellSlot.Q, killableJungle);
                         }
                     }
                 }
